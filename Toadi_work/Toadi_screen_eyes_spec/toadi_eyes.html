@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>toadi_eyes — how the robot’s eyes are driven</title>
+<style>
+:root{--bg:#f2f4f8;--fg:#0f1620;--mut:#586476;--card:#fff;--line:#d6dce6;--spi:#2f6bf0;--gpio:#b86e00;--wd:#d93a34;--led:#9fe8ff;--code:#e8edf5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0f15;--fg:#e8edf4;--mut:#93a0b2;--card:#131922;--line:#232c39;--spi:#6e9dff;--gpio:#ffb347;--wd:#ff7a74;--code:#0a0e14;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0f15;--fg:#e8edf4;--mut:#93a0b2;--card:#131922;--line:#232c39;--spi:#6e9dff;--gpio:#ffb347;--wd:#ff7a74;--code:#0a0e14;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 18px 70px}
+h1{font-size:clamp(30px,6vw,52px);line-height:1.05;margin:0 0 12px;letter-spacing:-.02em}
+h2{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+p{margin:0 0 12px;max-width:68ch}.mut{color:var(--mut)}
+section{margin-top:56px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+.panel{background:#05080c;border-radius:16px;padding:14px;border:1px solid #1d2733;box-shadow:0 18px 50px -20px rgba(20,60,120,.55)}
+canvas{display:block;width:100%;height:auto;border-radius:8px;filter:drop-shadow(0 0 7px rgba(90,200,255,.35))}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;color:#9fb0c4;font-size:14px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:9px;padding:7px 14px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--spi);outline-offset:2px}
+.panel button{background:#121a24;color:#dbe6f3;border-color:#273447}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 26px}
+.stat{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px}
+.stat b{display:block;font-size:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.two{grid-template-columns:1fr}}
+svg{width:100%;height:auto;display:block}
+svg text{font:12px system-ui,sans-serif;fill:var(--fg)}svg .m{fill:var(--mut)}
+.bytes{display:flex;flex-wrap:wrap;gap:14px;margin:16px 0}
+.grp{border:2px solid var(--c);border-radius:12px;padding:8px 10px}
+.grp small{display:block;color:var(--mut);margin-bottom:6px;font-size:12px}
+.grp span{display:inline-block;font:600 18px ui-monospace,Menlo,monospace;padding:3px 7px;margin-right:3px;border-radius:6px;background:var(--card);border:1px solid var(--line)}
+.grp span.cmd{background:var(--c);color:#fff;border-color:transparent}
+.bar{height:16px;border-radius:8px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:var(--wd);transition:width .1s linear}
+.lane{margin:14px 0}.lane div.h{display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px}
+.alert{border-left:5px solid var(--wd);background:var(--card);padding:12px 16px;border-radius:8px;margin-top:14px}
+.steps{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+.steps li{display:flex;gap:14px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--c);border-radius:10px;padding:10px 14px}
+.steps b.n{min-width:26px;height:26px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-size:13px}
+pre{background:var(--code);color:#cfe3f7;border-radius:12px;padding:14px;overflow-x:auto;font-size:13px;line-height:1.5;margin:0}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.scroll{overflow-x:auto}
+.ok{color:var(--spi)}.bad{color:var(--wd)}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Eyes on the robot, without the robot’s software</h1>
+<p>A 910 KB static binary talks straight to <code>/dev/spidev0.0</code> and <code>/dev/gpiochip0</code>, wakes both panels and plays a heart that grows from small to large, while it keeps three watchdogs alive.</p>
+<div class="stats">
+<div class="stat"><b>128 × 64</b>pixels per eye</div>
+<div class="stat"><b>1 MHz</b>SPI clock</div>
+<div class="stat"><b>3</b>watchdogs fed</div>
+<div class="stat"><b>12</b>heart frames</div>
+</div>
+<div class="panel">
+<canvas id="hero" width="768" height="384" aria-label="Animated heart on a 128 by 64 dot panel"></canvas>
+<div class="ctl">
+<button id="play">Pause</button>
+<label>Frame <input id="scrub" type="range" min="0" max="11" value="0"></label>
+<label><input id="pg" type="checkbox"> show wire pages</label>
+<span id="info" class="mono"></span>
+</div>
+</div>
+</header>
+
+<section>
+<h2>Wiring</h2>
+<p>Each eye has its own chip select. Data/command and reset lines are shared, so the init sequence goes to both eyes.</p>
+<div class="card"><svg viewBox="0 0 760 290" role="img" aria-label="Wiring diagram">
+<rect x="12" y="20" width="200" height="250" rx="14" fill="none" stroke="var(--mut)" stroke-width="2"/>
+<text x="112" y="46" text-anchor="middle" style="font-weight:700;font-size:14px">Carrier board (V3)</text>
+<text x="112" y="64" text-anchor="middle" class="m">EEPROM says hw 3.5.1</text>
+<g fill="none" stroke-width="3">
+<path d="M212 90H560" stroke="var(--spi)"/><path d="M212 120H540V190H560" stroke="var(--spi)"/>
+<path d="M212 160H480V76H560M480 160V206H560" stroke="var(--gpio)"/>
+<path d="M212 188H510V94H560M510 188V224H560" stroke="var(--gpio)" stroke-dasharray="7 4"/>
+<path d="M212 250H560" stroke="var(--wd)"/></g>
+<rect x="560" y="50" width="190" height="62" rx="10" fill="#05080c" stroke="var(--spi)" stroke-width="2"/>
+<rect x="560" y="170" width="190" height="62" rx="10" fill="#05080c" stroke="var(--spi)" stroke-width="2"/>
+<text x="655" y="86" text-anchor="middle" style="fill:#bfeaff;font-weight:700">LEFT eye</text>
+<text x="655" y="206" text-anchor="middle" style="fill:#bfeaff;font-weight:700">RIGHT eye</text>
+<rect x="590" y="240" width="160" height="40" rx="8" fill="none" stroke="var(--wd)" stroke-width="2"/>
+<text x="670" y="264" text-anchor="middle">external watchdog</text>
+<text x="226" y="84" fill="var(--spi)" style="fill:var(--spi)">spidev0.0 · 1 MHz</text>
+<text x="226" y="114" style="fill:var(--spi)">spidev0.1</text>
+<text x="226" y="154" style="fill:var(--gpio)">DC · gpio 2</text>
+<text x="226" y="182" style="fill:var(--gpio)">RESET · gpio 0 (dashed)</text>
+<text x="226" y="244" style="fill:var(--wd)">gpio 216 · toggles every 250 ms</text>
+</svg>
+<p class="mut" style="margin:8px 0 0">On pre-3.0 boards DC is line 79 and RESET is line 216, so the binary then leaves 216 alone instead of toggling it.</p></div>
+</section>
+
+<section>
+<h2>Waking the controller</h2>
+<p>Ten command bytes, in this exact order, each sent with DC low. Then <code>0xAF</code> turns the display on.</p>
+<div class="bytes">
+<div class="grp" style="--c:var(--spi)"><small>start</small><span class="cmd">00</span></div>
+<div class="grp" style="--c:var(--gpio)"><small>horizontal addressing</small><span class="cmd">20</span><span>00</span></div>
+<div class="grp" style="--c:var(--spi)"><small>pages 0 to 7</small><span class="cmd">22</span><span>00</span><span>07</span></div>
+<div class="grp" style="--c:var(--gpio)"><small>command + value</small><span class="cmd">81</span><span>FF</span></div>
+<div class="grp" style="--c:var(--spi)"><small>command + value</small><span class="cmd">82</span><span>FF</span></div>
+<div class="grp" style="--c:#1a9d5c"><small>display on</small><span class="cmd">AF</span></div>
+</div>
+<p class="mut">Filled bytes are commands, outlined bytes are their parameters. <span class="bad">A “cleaned up” 8-byte version that drops the second 00 or swaps 22 for 27 only lights a faint band of pixels.</span></p>
+</section>
+
+<section>
+<h2>Stored frame to wire stream</h2>
+<p>You draw in normal coordinates. The controller wants eight vertical pixels per byte, with pages and columns reversed, so <code>stored_to_wire()</code> flips the picture 180° before sending. Measured on the robot: the panel shows the stored frame 1:1.</p>
+<div class="two">
+<div class="panel"><canvas id="c1" width="384" height="192"></canvas><p class="mono" style="color:#9fb0c4;margin:10px 0 0">stored: bit = y·128 + x, MSB first</p></div>
+<div class="panel"><canvas id="c2" width="384" height="192"></canvas><p class="mono" style="color:#9fb0c4;margin:10px 0 0">wire: page = 7 − (y&gt;&gt;3), column = 127 − x</p></div>
+</div>
+</section>
+
+<section>
+<h2>Three watchdogs, one fast deadline</h2>
+<p>Stopping every feeder resets the robot in about 1 to 2 seconds, not 10. The 1 s watchdog sets the pace, and the kernel cannot be told to stop it.</p>
+<div class="card">
+<div class="lane"><div class="h"><span><b>/dev/watchdog0</b> · timeout 1 s</span><span id="t0" class="mono"></span></div><div class="bar"><i id="b0"></i></div></div>
+<div class="lane"><div class="h"><span><b>/dev/watchdog1</b> · timeout 120 s</span><span id="t1" class="mono"></span></div><div class="bar"><i id="b1"></i></div></div>
+<div class="lane"><div class="h"><span><b>gpio 216</b> · external board</span><span id="t2" class="mono"></span></div><div class="bar"><i id="b2"></i></div></div>
+<div class="ctl" style="color:var(--mut)"><button id="kill">Stop feeding</button><span id="wst">Feeding every 250 ms: all bars stay full.</span></div>
+<div class="alert" id="reboot" hidden><b>Reset.</b> watchdog0 ran out. In real life the board reboots and the stock stack brings the eyes back.</div>
+</div>
+<div class="alert" style="border-color:var(--gpio)"><b>One feeder, one process.</b> The watchdog devices allow a single open at a time. A second <code>toadi_eyes</code> gets <code>EBUSY</code> forever, so the binary refuses to start twice.</div>
+</section>
+
+<section>
+<h2>What the binary does at startup</h2>
+<ol class="steps">
+<li style="--c:var(--wd)"><b class="n">1</b><span><b>Detect the board</b> from the EEPROM: V3 uses pins 2 and 0, V2 uses 79 and 216.</span></li>
+<li style="--c:var(--wd)"><b class="n">2</b><span><b>Start the watchdog feeders</b> first: both devices and gpio 216, every 250 ms.</span></li>
+<li style="--c:var(--spi)"><b class="n">3</b><span><b>Open both SPI devices</b> and set 1 MHz. The right eye is optional.</span></li>
+<li style="--c:var(--gpio)"><b class="n">4</b><span><b>Claim DC and RESET</b> as outputs. If the stock app holds them, retry every 0.5 s and say who does.</span></li>
+<li style="--c:var(--gpio)"><b class="n">5</b><span><b>Pulse reset</b> low for 10 ms.</span></li>
+<li style="--c:var(--spi)"><b class="n">6</b><span><b>Send the init sequence</b>, then <code>0xAF</code>, then clear the panel.</span></li>
+<li style="--c:#1a9d5c"><b class="n">7</b><span><b>Animate</b> 12 frames, ping-pong, writing only the pages that changed.</span></li>
+</ol>
+</section>
+
+<section>
+<h2>Taking over safely</h2>
+<div class="two">
+<div class="card"><b class="ok">Safe order</b><pre>toadi_eyes --takeover 8
+# starts feeders, then runs
+# /etc/init.d/toadi stop</pre></div>
+<div class="card"><b>Check who holds the eyes</b><pre>toadi_eyes --check
+spidev0.0  open by ToadiApp
+gpio2      "LibgpiodDigitalOutput"
+gpio216    TOGGLING</pre></div>
+</div>
+<div class="alert"><b>Do not Ctrl-C casually.</b> With the feeders gone and nobody to take over, the robot reboots in about a second.</div>
+</section>
+
+<section>
+<h2>Modes</h2>
+<div class="card scroll"><table>
+<tr><td><code>toadi_eyes [fps]</code></td><td>animate, default 8 fps</td></tr>
+<tr><td><code>--takeover [fps]</code></td><td>stop the stock stack, then animate</td></tr>
+<tr><td><code>--check</code></td><td>read-only report of who holds the panels</td></tr>
+<tr><td><code>--test</code></td><td>bring-up card for 8 s, then the hearts</td></tr>
+<tr><td><code>--feed</code></td><td>feeders only, no panels</td></tr>
+<tr><td><code>--pins=DC,RESET</code></td><td>override EEPROM detection</td></tr>
+<tr><td><code>--wdg-gpio=N</code></td><td>heartbeat line, default 216, −1 for none</td></tr>
+<tr><td><code>--no-watchdog</code></td><td>only safe while the stock stack still feeds</td></tr>
+</table></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+// hero heart animation
+const hc=$('hero'),hx=hc.getContext('2d'),P=6;
+const frames=[];
+function heart(r){const b=new Uint8Array(8192),s=r/1.2,cy=32+s*.1;
+for(let y=0;y<64;y++)for(let x=0;x<128;x++){const X=(x-63.5)/s,Y=-(y-cy)/s,a=X*X+Y*Y-1;if(a*a*a-X*X*Y*Y*Y<=0)b[y*128+x]=1}return b}
+for(let i=0;i<12;i++){const t=Math.min(i/9,1);frames.push(heart(7+18*(1-(1-t)*(1-t))))}
+let cur=0,dir=1,playing=true,prev=null;
+function draw(i,showPages){const f=frames[i];hx.fillStyle='#05080c';hx.fillRect(0,0,768,384);
+for(let y=0;y<64;y++)for(let x=0;x<128;x++){hx.fillStyle=f[y*128+x]?'#aeeaff':'#101a26';hx.beginPath();hx.arc(x*P+P/2,y*P+P/2,f[y*128+x]?2.5:1.3,0,7);hx.fill()}
+const q=i>0?frames[i-1]:new Uint8Array(8192);let ch=0;
+for(let p=0;p<8;p++){let d=false;for(let y=p*8;y<p*8+8&&!d;y++)for(let x=0;x<128;x++)if(f[y*128+x]!==q[y*128+x]){d=true;break}
+if(d)ch++;if(showPages){const yy=p*48;hx.strokeStyle='rgba(255,179,71,.55)';hx.lineWidth=1;hx.strokeRect(.5,yy+.5,767,47);
+hx.fillStyle=d?'#ffb347':'#5d6b7d';hx.font='13px ui-monospace,monospace';hx.fillText('wire page '+(7-p)+(d?' · written':' · skipped'),8,yy+16)}}
+$('info').textContent='frame '+(i+1)+'/12 · '+ch+' of 8 pages sent';$('scrub').value=i}
+function tick(){if(playing){if(cur+dir>11||cur+dir<0)dir=-dir;cur+=dir}draw(cur,$('pg').checked)}
+setInterval(tick,125);draw(0,false);
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'Pause':'Play'};
+$('scrub').oninput=e=>{playing=false;$('play').textContent='Play';cur=+e.target.value;draw(cur,$('pg').checked)};
+$('pg').onchange=()=>draw(cur,$('pg').checked);
+// test card, stored and wire
+function card(id,rot){const c=$(id).getContext('2d'),k=3;c.fillStyle='#05080c';c.fillRect(0,0,384,192);
+const on=(x,y)=>{if(rot){x=127-x;y=63-y}c.fillStyle='#aeeaff';c.fillRect(x*k,y*k,k,k)};
+for(let x=0;x<128;x++){on(x,0);on(x,63)}for(let y=0;y<64;y++){on(0,y);on(127,y)}
+for(let a=0;a<8;a++)for(let b=0;b<8;b++){on(2+a,2+b);on(118+a,54+b)}
+for(let y=18;y<46;y++)for(let x=50;x<54;x++)on(x,y);for(let y=42;y<46;y++)for(let x=50;x<72;x++)on(x,y);
+if(rot){c.strokeStyle='rgba(255,179,71,.6)';for(let p=1;p<8;p++){c.beginPath();c.moveTo(0,p*24+.5);c.lineTo(384,p*24+.5);c.stroke()}}}
+card('c1',false);card('c2',true);
+// watchdog simulation
+let feeding=true,last=[performance.now(),performance.now()],dead=false;const TO=[1000,120000];
+$('kill').onclick=()=>{feeding=!feeding;dead=false;$('reboot').hidden=true;if(feeding){last=[performance.now(),performance.now()]}
+$('kill').textContent=feeding?'Stop feeding':'Resume feeding';
+$('wst').textContent=feeding?'Feeding every 250 ms: all bars stay full.':'Feeders stopped. Watch the 1 s bar.'};
+setInterval(()=>{const n=performance.now();
+if(feeding){const ph=(n%250)/250;for(let i=0;i<3;i++)$('b'+i).style.width='100%';$('t0').textContent='fed '+Math.round(ph*250)+' ms ago';$('t1').textContent='fed '+Math.round(ph*250)+' ms ago';$('t2').textContent='edge every 250 ms';return}
+const r0=Math.max(0,TO[0]-(n-last[0])),r1=Math.max(0,TO[1]-(n-last[1]));
+$('b0').style.width=r0/TO[0]*100+'%';$('b1').style.width=r1/TO[1]*100+'%';$('b2').style.width=r0/TO[0]*100+'%';
+$('t0').textContent=(r0/1000).toFixed(2)+' s left';$('t1').textContent=Math.round(r1/1000)+' s left';$('t2').textContent='no edges';
+if(r0===0&&!dead){dead=true;$('reboot').hidden=false}},50);
+</script>
+</body>
+</html>

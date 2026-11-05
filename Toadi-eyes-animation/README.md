@@ -105,5 +105,6 @@ reach while working on the robot.
 
 ## License
 
-No license is attached to this publish yet; treat the contents as all rights
-reserved unless the owner says otherwise.
+[MIT](../LICENSE). Note: the reference images under `reference/` were
+user-supplied and may carry their own rights; the license applies to the
+code and documentation in this repository.

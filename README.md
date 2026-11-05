@@ -19,4 +19,8 @@ that touches the wider stack (restarts, takeovers, motion commands) must be
 done with the physical e-stop within reach. See the safety sections in the
 published documentation.
 
+## License
+
+[MIT](LICENSE).
+
 [Toadi / EEVE]: https://toadi.be/

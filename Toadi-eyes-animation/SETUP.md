@@ -158,6 +158,10 @@ ssh root@192.168.1.184 'rm -rf /home/toadi/data/toadi; \
 
 ## 9. Build from source
 
+The full build description — the exact source files needed, the toolchain,
+the flags and how the shipped binary was produced — is in
+[`BUILD.md`](BUILD.md). In short:
+
 ```bash
 make -C src/example_plugin
 ```

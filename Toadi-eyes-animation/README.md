@@ -47,6 +47,7 @@ reference/spidey_ref/      reference images the generator reads
 hearts/                    raw 128×64 heart frames (provenance of hearts.h)
 animations_preview/        contact-sheet previews of the generated frames
 plugins/libExampleVisionPlugin.so   the accepted binary (SHA-256 above)
+BUILD.md                   how the .so is built and which source files it needs
 setup.sh                   one-command persistent deployment to the robot
 SETUP.md                   howto: deploy, approve, verify, rollback, build
 SHA256SUMS                 checksums
@@ -78,6 +79,10 @@ Full instructions: [`SETUP.md`](SETUP.md).
 
 ## Build from source
 
+The complete build description — the exact source files needed, the toolchain,
+the flags and how the shipped binary was produced — is in
+[`BUILD.md`](BUILD.md). In short:
+
 ```bash
 make -C src/example_plugin           # -> build/libExampleVisionPlugin.so
 readelf -d build/libExampleVisionPlugin.so | grep FLAGS_1   # expect NODELETE
@@ -88,7 +93,7 @@ recommended, C++11 ABI). The harness in `src/plugin_harness/` runs under
 `qemu-aarch64-static` against an extracted robot rootfs and needs it plus
 `libBroker.so` from the robot; use `make abi loader hearts` / `hearts-run`
 (the `follow` target needs `src/follow_plugin`, which is part of the full
-workspace, not this publish). See the spec §6 for the exact invocation.
+workspace, not this publish). See [`BUILD.md`](BUILD.md) §8 and spec 102 §6.
 
 ## Safety
 

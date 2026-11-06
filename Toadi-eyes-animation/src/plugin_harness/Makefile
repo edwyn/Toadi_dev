@@ -8,8 +8,8 @@
 
 CROSS ?= /home/demo/Downloads/toadi_work/tools/cross-bullseye/root
 ROBOT ?= /home/demo/Downloads/toadi_work/robot_rootfs_full
-ROOTFS ?= $(ROBOT)     # qemu -L prefix (system libs/interpreter)
-LIBS   ?= $(ROBOT)     # app libraries (libPlugins, libBroker, deps)
+ROOTFS ?= $(ROBOT)
+LIBS   ?= $(ROBOT)
 QEMU  ?= /home/demo/Downloads/toadi_work/tools/qemu-aarch64-static
 BUILD ?= build
 
@@ -24,12 +24,16 @@ LDFLAGS := -ldl -Wl,--allow-shlib-undefined -Wl,-rpath,'$$ORIGIN'
 
 PLUGIN_DIR := ../example_plugin
 PLUGIN := $(PLUGIN_DIR)/build/libExampleVisionPlugin.so
+ANIM_DIR := ../animation_plugin
+ANIM := $(ANIM_DIR)/build/libEyesAnimationPlugin.so
 FOLLOW_DIR := ../follow_plugin
 FOLLOW := $(FOLLOW_DIR)/build/libFollowPlugin.so
 
-.PHONY: all abi loader hearts follow plugin run run-inert loader-run hearts-run follow-run clean
+.PHONY: all abi loader hearts follow plugin anim run run-inert loader-run hearts-run follow-run clean
 
-all: abi loader hearts follow
+# 'follow' is omitted from 'all': it needs src/follow_plugin from the full
+# workspace, which is not part of this publish.
+all: abi loader hearts
 
 abi: $(BUILD)/abi_harness $(BUILD)/libBroker.so
 loader: $(BUILD)/loader_harness $(BUILD)/libBroker.so
@@ -55,8 +59,8 @@ $(BUILD)/loader_harness: loader_harness.cpp $(BUILD)/libBroker.so | $(BUILD)
 	    $(LDFLAGS) -o $@
 
 $(BUILD)/hearts_harness: hearts_harness.cpp $(BUILD)/libBroker.so | $(BUILD)
-	$(CXX) $(CXXFLAGS) -I$(PLUGIN_DIR)/src $< -L$(BUILD) -lBroker \
-	    $(LDFLAGS) -pthread -o $@
+	$(CXX) $(CXXFLAGS) -I$(ANIM_DIR)/include -I$(ANIM_DIR)/src $< \
+	    -L$(BUILD) -lBroker $(LDFLAGS) -pthread -o $@
 
 $(BUILD)/follow_harness: follow_harness.cpp $(BUILD)/libBroker.so | $(BUILD)
 	$(CXX) $(CXXFLAGS) -I$(FOLLOW_DIR)/include $< -L$(BUILD) -lBroker \
@@ -64,7 +68,9 @@ $(BUILD)/follow_harness: follow_harness.cpp $(BUILD)/libBroker.so | $(BUILD)
 
 plugin:
 	$(MAKE) -C $(PLUGIN_DIR)
-	$(MAKE) -C $(FOLLOW_DIR)
+
+anim:
+	$(MAKE) -C $(ANIM_DIR)
 
 # Run under qemu with the robot rootfs as the ELF interpreter/library prefix.
 # The plug-in and libBroker.so are copied to the local build dir first: the
@@ -87,11 +93,11 @@ loader-run: loader plugin
 	    $(QEMU) -L $(ROOTFS) $(BUILD)/loader_harness $(BUILD)/plugins
 
 # Fake eyesui service + REST round-trip; no ToadiApp or SPI involved.
-hearts-run: hearts plugin
-	cp $(PLUGIN) $(BUILD)/libExampleVisionPlugin.so
+hearts-run: hearts anim
+	cp $(ANIM) $(BUILD)/libEyesAnimationPlugin.so
 	LD_LIBRARY_PATH=$(LIBS)/home/toadi/lib:$(LIBS)/usr/lib \
 	    $(QEMU) -L $(ROOTFS) $(BUILD)/hearts_harness \
-	    $(BUILD)/libExampleVisionPlugin.so
+	    $(BUILD)/libEyesAnimationPlugin.so
 
 # Follow trigger/supervisor harness; no ToadiApp or motors.
 follow-run: follow

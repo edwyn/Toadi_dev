@@ -1,25 +1,40 @@
-# Building `libExampleVisionPlugin.so`
+# Building the plug-ins
 
-This chapter explains exactly how the eyes animation plug-in binary is built,
-which source files are needed, and how the shipped binary in
+This chapter explains exactly how the plug-in libraries are built, which
+source files each one needs, and how the shipped binary in
 [`plugins/`](plugins/) was produced. All paths are relative to this folder.
 
-## 1. What the binary is
+The source is split into two clearly separated, self-contained sets:
 
-`libExampleVisionPlugin.so` is a loadable Toadi Broker `VisionAlgoPlugin` for
-aarch64 (the robot's Cortex-A57). It is built from two translation units and
-six embedded frame headers, and its dynamic dependencies are only
-`libstdc++.so.6`, `libgcc_s.so.1` and `libc.so.6`. It must be linked with
-`-Wl,-z,nodelete` (see §3).
+| Set | Directory | Builds | Purpose |
+|---|---|---|---|
+| **eyes animation plug-in** | [`src/animation_plugin/`](src/animation_plugin/) | `libEyesAnimationPlugin.so` | draws the eye animations + REST trigger — **the deployable library** |
+| **inert example plug-in** | [`src/example_plugin/`](src/example_plugin/) | `libExampleVisionPlugin.so` | the minimal spec-100 loader/broker example; builds to prove the SDK works, not meant for deployment |
 
-## 2. Source files needed
+> History: up to 2026-11-06 both lived in one library (`libExampleVisionPlugin.so`)
+> with the animations gated behind `TOADI_EXAMPLE_HEARTS=1`. The split made
+> the animation library a dedicated, purpose-built deployable.
 
-Everything lives in [`src/example_plugin/`](src/example_plugin/):
+## 1. What the libraries are
+
+- `libEyesAnimationPlugin.so` is a loadable Toadi Broker `VisionAlgoPlugin`
+  for aarch64 (the robot's Cortex-A57). Its dynamic dependencies are only
+  `libstdc++.so.6`, `libgcc_s.so.1` and `libc.so.6`. It draws the animations
+  through the `eyesui` broker service and answers REST on `:8081`; it
+  contributes no vision algorithms and never touches the motors.
+- `libExampleVisionPlugin.so` is the inert example: same loader interface,
+  empty vision-algorithm list, opt-in broker registration.
+
+Both must be linked with `-Wl,-z,nodelete` (see §4).
+
+## 2. Source files needed — eyes animation plug-in
+
+Everything lives in [`src/animation_plugin/`](src/animation_plugin/):
 
 | File | Role |
 |---|---|
 | `Makefile` | build driver: toolchain paths, flags, `all`/`clean`/`install` |
-| `src/example_vision_plugin.cpp` | plug-in entry: `createVisionAlgoPlugin` factory, optional broker-service registration, empty `makeVisionAlgos()` |
+| `src/animation_plugin.cpp` | plug-in entry: `createVisionAlgoPlugin` factory + Boost.DLL alias, hearts gate |
 | `src/hearts_controller.cpp` | the eyes controller: animation table, 8 fps worker, `eyesui` layer management, REST listener on `:8081`, procedural `fireworks` |
 | `src/hearts.h` | embedded 12-frame heart animation (128×64, 1 bpp, MSB-first) |
 | `src/spidey_frames.h` | filled Spidey lenses, left/right sets |
@@ -35,7 +50,7 @@ Everything lives in [`src/example_plugin/`](src/example_plugin/):
 | `include/toadi/eyes_ui.h` | reconstructed `EyesUI` / `EyesUILayer` ABI (resolved via `dlsym`) |
 | `include/toadi/example_hearts.h` | controller start + the `toadi_example_hearts_set_eyesui()` test hook |
 
-Nothing outside `src/example_plugin/` is needed to build the `.so`.
+Nothing outside `src/animation_plugin/` is needed to build it.
 
 ### Generated inputs (optional, already embedded)
 
@@ -46,9 +61,25 @@ from the reference images in [`reference/spidey_ref/`](reference/spidey_ref/)
 `paw-patrol-badge-diy-1440x768.png`, `walle_left.png`, `walle_right.png`);
 `hearts.h` embeds the raw frames in [`hearts/`](hearts/). These are only
 needed when you want to **regenerate** the headers — the build itself does
-not read them. See §6.
+not read them. See §7.
 
-## 3. Toolchain and flags
+## 3. Source files needed — inert example plug-in
+
+Everything lives in [`src/example_plugin/`](src/example_plugin/):
+
+| File | Role |
+|---|---|
+| `Makefile` | build driver (same toolchain defaults) |
+| `src/example_vision_plugin.cpp` | factory, optional `example/visionplugin` broker registration (`TOADI_EXAMPLE_REGISTER_SERVICE=1`), empty `makeVisionAlgos()` |
+| `include/toadi/unknown.h` | `toadi::Unknown` — the registry root object |
+| `include/toadi/query_interface.h` | `QueryInterface<Unknown>` |
+| `include/toadi/broker.h` | `Broker` + `makeBroker()` |
+| `include/toadi/vision_algo_plugin.h` | `VisionAlgoPlugin`, factory declaration |
+
+The four SDK headers are identical copies of the ones in
+`src/animation_plugin/include/toadi/`, so each set builds standalone.
+
+## 4. Toolchain and flags (both sets)
 
 - **aarch64 cross GCC 10/11** with the robot's C++11 ABI
   (`_GLIBCXX_USE_CXX11_ABI=1`, the default). The Debian bullseye aarch64
@@ -56,88 +87,99 @@ not read them. See §6.
   `CROSS` if it is not the `Makefile` default:
 
   ```bash
-  make -C src/example_plugin CROSS=/path/to/bullseye-sysroot/root
+  make -C src/animation_plugin CROSS=/path/to/bullseye-sysroot/root
   ```
 
   (The full workspace obtains that sysroot with its `tools/fetch_toolchain.sh`
   — `apt-get download` + `dpkg-deb -x` — which is not part of this publish.)
 
-- **Compile flags** (set by the `Makefile`):
+- **Compile flags** (set by both `Makefile`s):
   `--sysroot=$(CROSS) -B$(GCCLIB) -L$(GCCLIB) -std=c++17 -O2 -fPIC -Wall -Wextra
   -fvisibility=hidden -fvisibility-inlines-hidden -Iinclude`
 
-- **Link flags**:
-  `-shared -Wl,-z,nodelete -Wl,-soname,libExampleVisionPlugin.so -pthread -ldl`
+- **Link flags** (animation plug-in):
+  `-shared -Wl,-z,nodelete -Wl,-soname,libEyesAnimationPlugin.so -pthread -ldl`
+  (`-pthread -ldl` serve the detached animation/REST worker and the `dlsym`
+  resolution of the `eyesui` interface; the inert example needs neither.)
 
   `nodelete` is **required** for correctness, not optional: the Vision loader
   drops its temporary `dlopen` handle after `loadPluginLibraries()`, and
   without `DF_1_NODELETE` a Vision-only library is unloaded again (spec 100
-  §7.3). `-pthread -ldl` serve the detached animation/REST worker and the
-  `dlsym` resolution of the `eyesui` interface.
+  §7.3).
 
-- The `Makefile` exports `LD_LIBRARY_PATH` for the cross binutils' host-side
+- The `Makefile`s export `LD_LIBRARY_PATH` for the cross binutils' host-side
   helper libraries; this is part of the build and stays.
 
-## 4. Build
+## 5. Build
 
 ```bash
-make -C src/example_plugin
+make -C src/animation_plugin            # -> src/animation_plugin/build/libEyesAnimationPlugin.so
+make -C src/example_plugin              # -> src/example_plugin/build/libExampleVisionPlugin.so
 ```
 
-outputs `src/example_plugin/build/libExampleVisionPlugin.so`. Other targets:
-`make -C src/example_plugin clean`, and
-`make -C src/example_plugin install DESTDIR=/path/to/plugins`.
+Other targets per set: `make clean`, and
+`make install DESTDIR=/path/to/plugins`.
 
-## 5. Verify the result
+## 6. Verify the result
 
 ```bash
-file src/example_plugin/build/libExampleVisionPlugin.so     # aarch64 shared object
-readelf -d src/example_plugin/build/libExampleVisionPlugin.so | grep FLAGS_1   # expect NODELETE
-sha256sum src/example_plugin/build/libExampleVisionPlugin.so
+file src/animation_plugin/build/libEyesAnimationPlugin.so     # aarch64 shared object
+readelf -d src/animation_plugin/build/libEyesAnimationPlugin.so | grep FLAGS_1   # expect NODELETE
+sha256sum src/animation_plugin/build/libEyesAnimationPlugin.so
 ```
 
-The `FLAGS_1` line must contain `NODELETE` — see §3. If the hash differs from
+The `FLAGS_1` line must contain `NODELETE` — see §4. If the hash differs from
 the shipped build you can still deploy it (`setup.sh --plugin` + `--force`
-after updating [`SHA256SUMS`](SHA256SUMS)), but run the harness first (§8).
+after updating [`SHA256SUMS`](SHA256SUMS)), but run the harness first (§9).
 
-## 6. Regenerating the frame headers
+## 7. Regenerating the frame headers
 
 ```bash
 python3 tools/generate_animation_frames.py
 ```
 
-rewrites `src/example_plugin/src/{spidey,spidey2,spider,pumpkin,badge,walle}_frames.h`
+rewrites `src/animation_plugin/src/{spidey,spidey2,spider,pumpkin,badge,walle}_frames.h`
 and refreshes the contact sheets in `animations_preview/`. It only needs PIL
 (`Pillow`). Rebuild after regenerating.
 
-## 7. The shipped binary
+## 8. The shipped binary
 
-[`plugins/libExampleVisionPlugin.so`](plugins/libExampleVisionPlugin.so) was
-built with the §3 toolchain and the §4 command from exactly the sources in
-this folder. Its SHA-256,
-`dbbd883a96c4d9bc0df47c11610d710ba4a17f09af6674bf17f67c4c657ebbe8`, is the
-build that was deployed and visually accepted on `192.168.1.184` (spec 102
-§7) and is recorded in [`SHA256SUMS`](SHA256SUMS).
+[`plugins/libEyesAnimationPlugin.so`](plugins/libEyesAnimationPlugin.so) was
+built with the §4 toolchain and the §5 command from exactly the sources in
+`src/animation_plugin/`. Its SHA-256 (see [`SHA256SUMS`](SHA256SUMS)) is the
+build to deploy. The pre-split merged binary
+`libExampleVisionPlugin.so` (SHA-256
+`dbbd883a96c4d9bc0df47c11610d710ba4a17f09af6674bf17f67c4c657ebbe8`, the one
+spec 102 §7 refers to) is retired; `setup.sh` removes it from robots it
+updates.
 
-## 8. Test without the robot
+## 9. Test without the robot
 
-The hearts harness in [`src/plugin_harness/`](src/plugin_harness/) loads the
-built plug-in directly, injects a fake `eyesui` through
-`toadi_example_hearts_set_eyesui()`, and checks the draw calls, layer
-lifecycle, frame bit order and every REST route:
+The harnesses in [`src/plugin_harness/`](src/plugin_harness/) run the aarch64
+libraries under `qemu-aarch64-static` against an extracted robot rootfs:
 
 ```bash
+# eyes animation plug-in: fake eyesui + every REST route
 make -C src/plugin_harness hearts-run \
      BUILD=/path/to/local/build \
      LIBS=/path/to/robot_rootfs_full ROOTFS=/path/to/robot_rootfs_full
+
+# inert example: direct ABI and the real libPlugins.so loader
+make -C src/plugin_harness run        BUILD=/path/to/local/build LIBS=... ROOTFS=...
+make -C src/plugin_harness loader-run BUILD=/path/to/local/build LIBS=... ROOTFS=...
 ```
 
-This runs under `qemu-aarch64-static` and needs an extracted robot rootfs plus
-`libBroker.so` from the robot (not part of this publish). Expected result:
-`ALL PASS (0 failures)` — see spec 102 §6.
+`LIBS`/`ROOTFS` must point at an extracted robot rootfs containing
+`home/toadi/lib/libBroker.so` (and, for `loader-run`, `libPlugins.so` and
+`libLog.so`) — not part of this publish. The hearts harness loads the plug-in
+directly and injects a fake `eyesui` through
+`toadi_example_hearts_set_eyesui()`; it checks the draw calls, layer
+lifecycle, frame bit order and every REST route. Expected result for all
+three: `ALL PASS (0 failures)` — see spec 102 §6. All three pass with the
+current builds in this repo.
 
-## 9. Install on the robot
+## 10. Install on the robot
 
 `make install DESTDIR=...` only copies the file. The real, persistent,
-crash-loop-safe deployment is [`setup.sh`](setup.sh) — see
-[`SETUP.md`](SETUP.md).
+crash-loop-safe deployment of the animation plug-in is
+[`setup.sh`](setup.sh) — see [`SETUP.md`](SETUP.md).

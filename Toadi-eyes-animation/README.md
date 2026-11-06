@@ -2,16 +2,25 @@
 
 A loadable Toadi Broker `VisionAlgoPlugin` for the Toadi / EEVE robot that
 draws eye-panel animations through the app's public **EyesUI** layer API and
-triggers them over a small REST listener on **:8081**.
+triggers them over a small REST listener on **:8081**. It builds one dedicated
+deployable library, `libEyesAnimationPlugin.so` — the library does **only**
+eye animations: it contributes no vision algorithms, registers no broker
+services and never touches the motors.
 
 This folder is the published subset of a larger reverse-engineering workspace.
-It contains the documentation, the source code, the accepted binary, a setup
-howto and a one-command deployment script.
+It contains the documentation, the source code, the binary, a setup howto and
+a one-command deployment script. The source is split into two clear sets:
+[`src/animation_plugin/`](src/animation_plugin/) (the deployable animation
+plug-in) and [`src/example_plugin/`](src/example_plugin/) (the inert spec-100
+loader example, kept only to prove the SDK builds and loads).
 
 - Status: **implemented and visually verified** on robot `192.168.1.184`
-  (app 6.7.0, 2026-10-31).
-- Accepted plug-in SHA-256: `dbbd883a96c4d9bc0df47c11610d710ba4a17f09af6674bf17f67c4c657ebbe8`
-  (see [`SHA256SUMS`](SHA256SUMS)).
+  (app 6.7.0, 2026-10-31). The verification was done with the pre-split
+  combined library that spec 102 §7 refers to as `libExampleVisionPlugin.so`
+  (SHA-256 `dbbd883a…`); the split-out animation library is the same code
+  built as a dedicated plug-in (see [`BUILD.md`](BUILD.md) §8).
+- Shipped binary: `plugins/libEyesAnimationPlugin.so` — SHA-256 in
+  [`SHA256SUMS`](SHA256SUMS).
 - The stock app remains the owner of the SPI panels; the plug-in draws through
   the `eyesui` broker service, so stock emotion/motion-control animations keep
   working and take over the eyes when they are active.
@@ -40,14 +49,15 @@ the full route table.
 
 ```
 docs/                      the three relevant specs (see below)
-src/example_plugin/        plug-in source (C++17, aarch64)
+src/animation_plugin/      the deployable eyes animation plug-in (C++17, aarch64)
+src/example_plugin/        the inert spec-100 loader/broker example
 src/plugin_harness/        ABI + real-libPlugins harnesses (qemu), incl. hearts
 tools/generate_animation_frames.py  regenerates the embedded frame sets
 reference/spidey_ref/      reference images the generator reads
 hearts/                    raw 128×64 heart frames (provenance of hearts.h)
 animations_preview/        contact-sheet previews of the generated frames
-plugins/libExampleVisionPlugin.so   the accepted binary (SHA-256 above)
-BUILD.md                   how the .so is built and which source files it needs
+plugins/libEyesAnimationPlugin.so    the shipped binary (SHA-256 in SHA256SUMS)
+BUILD.md                   how each library is built and which source files it needs
 setup.sh                   one-command persistent deployment to the robot
 SETUP.md                   howto: deploy, approve, verify, rollback, build
 SHA256SUMS                 checksums
@@ -84,8 +94,9 @@ the flags and how the shipped binary was produced — is in
 [`BUILD.md`](BUILD.md). In short:
 
 ```bash
-make -C src/example_plugin           # -> build/libExampleVisionPlugin.so
-readelf -d build/libExampleVisionPlugin.so | grep FLAGS_1   # expect NODELETE
+make -C src/animation_plugin          # -> build/libEyesAnimationPlugin.so (the deployable)
+readelf -d build/libEyesAnimationPlugin.so | grep FLAGS_1   # expect NODELETE
+make -C src/example_plugin            # -> build/libExampleVisionPlugin.so (inert example)
 ```
 
 Requires an aarch64 GCC 10/11 cross toolchain (Debian bullseye sysroot
@@ -93,7 +104,7 @@ recommended, C++11 ABI). The harness in `src/plugin_harness/` runs under
 `qemu-aarch64-static` against an extracted robot rootfs and needs it plus
 `libBroker.so` from the robot; use `make abi loader hearts` / `hearts-run`
 (the `follow` target needs `src/follow_plugin`, which is part of the full
-workspace, not this publish). See [`BUILD.md`](BUILD.md) §8 and spec 102 §6.
+workspace, not this publish). See [`BUILD.md`](BUILD.md) §9 and spec 102 §6.
 
 ## Safety
 

@@ -9,8 +9,8 @@ Spidey eyes are extracted from the user-supplied stencil
 on black. The spider is drawn procedurally with the reference proportions.
 
 Outputs:
-  src/example_plugin/src/spidey_frames.h
-  src/example_plugin/src/spider_frames.h
+  src/animation_plugin/src/spidey_frames.h
+  src/animation_plugin/src/spider_frames.h
   animations_preview/{spidey_left,spidey_right,spider}_contact.png
 """
 import math
@@ -391,7 +391,7 @@ def render_walle(path, angle, lens_scale):
 
 def main():
     outdir = os.path.join(ROOT, 'animations_preview')
-    srcdir = os.path.join(ROOT, 'src', 'example_plugin', 'src')
+    srcdir = os.path.join(ROOT, 'src', 'animation_plugin', 'src')
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(srcdir, exist_ok=True)
 

@@ -13,9 +13,9 @@ Verified on `192.168.1.184` (app 6.7.0, 2026-10-31). Read
 ## 1. Prerequisites
 
 - SSH access to the robot as root (`ssh root@<robot>`).
-- The accepted binary `plugins/libExampleVisionPlugin.so`
-  (SHA-256 `dbbd883a96c4d9bc0df47c11610d710ba4a17f09af6674bf17f67c4c657ebbe8`).
-  `setup.sh` verifies this against [`SHA256SUMS`](SHA256SUMS) before copying.
+- The shipped binary `plugins/libEyesAnimationPlugin.so` (its SHA-256 is in
+  [`SHA256SUMS`](SHA256SUMS)).
+  `setup.sh` verifies this against `SHA256SUMS` before copying.
 - The robot on a LAN you trust. The REST trigger is **unauthenticated**.
 
 ## 2. Quick start (trial deployment)
@@ -28,7 +28,7 @@ cd Toadi-eyes-animation
 What happens:
 
 1. The binary is verified against `SHA256SUMS` and copied to the persistent
-   data partition: `/home/toadi/data/plugins/libExampleVisionPlugin.so`.
+   data partition: `/home/toadi/data/plugins/libEyesAnimationPlugin.so`.
 2. A dev-workdir wrapper `/home/toadi/data/toadi/ToadiApp` is installed. It
    sets the mandatory `LD_LIBRARY_PATH`, `PLUGIN_PATH=/home/toadi/plugins`,
    `TOADI_EXAMPLE_HEARTS=1`, keeps the stock web UI working
@@ -61,7 +61,7 @@ curl -s -X POST "http://192.168.1.184:8081/hearts?loops=3"
 
 # the plug-in must be mapped into ToadiApp (nodelete -> 4 mappings)
 ssh root@192.168.1.184 \
-  'grep libExampleVisionPlugin /proc/$(pidof ToadiApp)/maps | head'
+  'grep libEyesAnimationPlugin /proc/$(pidof ToadiApp)/maps | head'
 ```
 
 Expected `/status`: `ok:true`, `eyesui:true`, `layer:true`, `animating:false`
@@ -116,7 +116,7 @@ Notes:
 ./setup.sh root@<robot> --port 8082    # set TOADI_EXAMPLE_HEARTS_PORT
 ./setup.sh root@<robot> --priority 500 # set TOADI_EXAMPLE_HEARTS_PRIORITY
 ./setup.sh root@<robot> --key ~/.ssh/toadi_root_key   # SSH key
-./setup.sh root@<robot> --plugin path/to/libExampleVisionPlugin.so
+./setup.sh root@<robot> --plugin path/to/libEyesAnimationPlugin.so
 ./setup.sh root@<robot> --uninstall    # remove wrapper + plug-in, restore stock app
 ```
 
@@ -133,7 +133,7 @@ Environment variables honoured by the plug-in itself
 
 ```bash
 make -C src/example_plugin
-./setup.sh root@192.168.1.184 --approve --plugin src/example_plugin/build/libExampleVisionPlugin.so
+./setup.sh root@192.168.1.184 --approve --plugin src/animation_plugin/build/libEyesAnimationPlugin.so
 ```
 
 `setup.sh` in trial mode removes `plugin-ok` first, so a fresh trial is run;
@@ -153,7 +153,7 @@ removes the dev-workdir directory), see spec 101 §6.6:
 ```bash
 ssh root@192.168.1.184 'rm -rf /home/toadi/data/toadi; \
   rm -f /home/toadi/data/plugin-enable /home/toadi/data/plugin-ok /home/toadi/data/plugin-trial; \
-  rm -f /home/toadi/plugins/libExampleVisionPlugin.so; reboot'
+  rm -f /home/toadi/plugins/libEyesAnimationPlugin.so; reboot'
 ```
 
 ## 9. Build from source
@@ -172,7 +172,7 @@ if it is not the workspace default). The link line must keep
 its factory returns. Verify with:
 
 ```bash
-readelf -d src/example_plugin/build/libExampleVisionPlugin.so | grep FLAGS_1
+readelf -d src/animation_plugin/build/libEyesAnimationPlugin.so | grep FLAGS_1
 ```
 
 The harness (`src/plugin_harness/`, `hearts-run` target) additionally needs an

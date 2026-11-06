@@ -30,18 +30,13 @@ CXXFLAGS := --sysroot=$(CROSS) -B$(GCCLIB) -L$(GCCLIB) \
 # retained by the Activity path. nodelete keeps this library mapped so
 # DetectionProcess vtables remain valid (and makes the load observable in
 # /proc/<pid>/maps).
-LDFLAGS  := -shared -Wl,-z,nodelete -Wl,-soname,libExampleVisionPlugin.so \
-            -pthread -ldl
+LDFLAGS  := -shared -Wl,-z,nodelete -Wl,-soname,libExampleVisionPlugin.so
 
 BUILD := build
 TARGET := $(BUILD)/libExampleVisionPlugin.so
-SRC := src/example_vision_plugin.cpp src/hearts_controller.cpp
+SRC := src/example_vision_plugin.cpp
 HDRS := include/toadi/unknown.h include/toadi/query_interface.h \
-        include/toadi/broker.h \
-        include/toadi/vision_algo_plugin.h include/toadi/eyes_ui.h \
-        include/toadi/example_hearts.h src/hearts.h \
-        src/spidey_frames.h src/spidey2_frames.h src/spider_frames.h \
-        src/pumpkin_frames.h src/badge_frames.h src/walle_frames.h
+        include/toadi/broker.h include/toadi/vision_algo_plugin.h
 
 .PHONY: all clean install
 
@@ -49,7 +44,7 @@ all: $(TARGET)
 
 $(TARGET): $(SRC) $(HDRS)
 	@mkdir -p $(BUILD)
-	$(CXX) $(CXXFLAGS) -pthread $(SRC) $(LDFLAGS) -o $@
+	$(CXX) $(CXXFLAGS) $(SRC) $(LDFLAGS) -o $@
 	@echo "built $@"
 	@file $@
 

@@ -6,7 +6,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PLUGIN="$SCRIPT_DIR/plugins/libExampleVisionPlugin.so"
+PLUGIN="$SCRIPT_DIR/plugins/libEyesAnimationPlugin.so"
 KEY=""
 SSHOPT=""
 PORT=""
@@ -30,7 +30,7 @@ Options:
   --inert            deploy without TOADI_EXAMPLE_HEARTS=1 (inert example)
   --port N           set TOADI_EXAMPLE_HEARTS_PORT (default: 8081)
   --priority N       set TOADI_EXAMPLE_HEARTS_PRIORITY (default: 2000)
-  --plugin PATH      .so to deploy (default: plugins/libExampleVisionPlugin.so
+  --plugin PATH      .so to deploy (default: plugins/libEyesAnimationPlugin.so
                      next to this script)
   --key PATH         SSH private key (-i)
   --force            skip the SHA256SUMS check
@@ -91,10 +91,10 @@ check_plugin() {
         echo "warning: sha256sum not available; skipping hash check" >&2
         return
     fi
-    EXPECTED=$(awk '$2 == "libExampleVisionPlugin.so" { print $1 }' \
+    EXPECTED=$(awk '$2 == "libEyesAnimationPlugin.so" { print $1 }' \
         "$SCRIPT_DIR/SHA256SUMS")
     if [ -z "$EXPECTED" ]; then
-        echo "warning: libExampleVisionPlugin.so not listed in SHA256SUMS; skipping hash check" >&2
+        echo "warning: libEyesAnimationPlugin.so not listed in SHA256SUMS; skipping hash check" >&2
         return
     fi
     ACTUAL=$(sha256sum "$PLUGIN" | awk '{ print $1 }')
@@ -140,8 +140,8 @@ EOF
 ENABLE=/home/toadi/data/plugin-enable   # operator intent
 OK=/home/toadi/data/plugin-ok           # proven stable
 TRIAL=/home/toadi/data/plugin-trial     # one-shot request
-REAL=/home/toadi/data/plugins/libExampleVisionPlugin.so
-LINK=/home/toadi/plugins/libExampleVisionPlugin.so
+REAL=/home/toadi/data/plugins/libEyesAnimationPlugin.so
+LINK=/home/toadi/plugins/libEyesAnimationPlugin.so
 
 if [ -f "$ENABLE" ] && { [ -f "$OK" ] || [ -f "$TRIAL" ]; } && [ -f "$REAL" ]; then
     # Consume the trial BEFORE the plug-in is loaded: if the app dies, the
@@ -166,8 +166,13 @@ deploy() {
     echo "==> $HOST: preparing /home/toadi/data"
     ssh $SSHOPT "$ROBOT" 'mkdir -p /home/toadi/data/plugins /home/toadi/data/toadi'
 
-    echo "==> $HOST: copying $PLUGIN -> /home/toadi/data/plugins/libExampleVisionPlugin.so"
-    scp $SSHOPT "$PLUGIN" "$ROBOT:/home/toadi/data/plugins/libExampleVisionPlugin.so"
+    echo "==> $HOST: copying $PLUGIN -> /home/toadi/data/plugins/libEyesAnimationPlugin.so"
+    scp $SSHOPT "$PLUGIN" "$ROBOT:/home/toadi/data/plugins/libEyesAnimationPlugin.so"
+
+    echo "==> $HOST: removing any pre-split plug-in (libExampleVisionPlugin.so)"
+    ssh $SSHOPT "$ROBOT" \
+        'rm -f /home/toadi/data/plugins/libExampleVisionPlugin.so \
+               /home/toadi/plugins/libExampleVisionPlugin.so'
 
     echo "==> $HOST: installing dev-workdir wrapper /home/toadi/data/toadi/ToadiApp"
     cat "$WRAP" | ssh $SSHOPT "$ROBOT" \
@@ -210,7 +215,7 @@ Done (${MODE}). Verify:
   curl -s http://$HOST:8081/status
   curl -s http://$HOST:8081/animations
   curl -s -X POST "http://$HOST:8081/hearts?loops=3"
-  ssh $ROBOT 'grep libExampleVisionPlugin /proc/\$(pidof ToadiApp)/maps | head'
+  ssh $ROBOT 'grep libEyesAnimationPlugin /proc/\$(pidof ToadiApp)/maps | head'
 EOF
     if [ "$MODE" != approve ]; then
         cat <<EOF
@@ -228,6 +233,8 @@ uninstall() {
     ssh $SSHOPT "$ROBOT" \
         'rm -rf /home/toadi/data/toadi \
               /home/toadi/data/plugin-enable /home/toadi/data/plugin-ok /home/toadi/data/plugin-trial \
+              /home/toadi/data/plugins/libEyesAnimationPlugin.so \
+              /home/toadi/plugins/libEyesAnimationPlugin.so \
               /home/toadi/data/plugins/libExampleVisionPlugin.so \
               /home/toadi/plugins/libExampleVisionPlugin.so'
     echo "==> $HOST: restarting the stock app"

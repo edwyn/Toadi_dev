@@ -16,7 +16,6 @@
 // makeVisionAlgos(); see include/toadi/vision_algo_plugin.h and spec 100.
 
 #include "toadi/vision_algo_plugin.h"
-#include "toadi/example_hearts.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -73,13 +72,6 @@ namespace toadi {
 std::unique_ptr<VisionAlgoPlugin> createVisionAlgoPlugin(Broker& broker) {
     try {
         log("factory invoked (broker=%p)", static_cast<void*>(&broker));
-
-        // Optional hearts animation controller + REST trigger.  Off unless
-        // the wrapper explicitly exports TOADI_EXAMPLE_HEARTS=1.
-        const char* hearts_flag = std::getenv("TOADI_EXAMPLE_HEARTS");
-        if (hearts_flag != nullptr && *hearts_flag != '\0') {
-            example_hearts_start(broker);
-        }
 
         // Registering a service that outlives the factory is only safe if the
         // host keeps this .so mapped. That is true in the stock application
